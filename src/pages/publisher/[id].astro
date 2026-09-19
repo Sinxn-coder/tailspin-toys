@@ -1,0 +1,73 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Layout from '../../layouts/Layout.astro';
+import Card from '../../components/Card.astro';
+import GameCard from '../../components/GameCard.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import Button from '../../components/Button.astro';
+import ArrowLeft from '../../assets/icons/arrow-left.svg';
+import { getDatabase } from '../../lib/db';
+import { getAllPublisherIds, getPublisherById, getGamesByPublisher } from '../../lib/games';
+
+export const prerender = true;
+
+export const getStaticPaths = (async () => {
+    const ids = await getAllPublisherIds(getDatabase());
+    return ids.map((id) => ({ params: { id: String(id) } }));
+}) satisfies GetStaticPaths;
+
+const { id } = Astro.params;
+const publisher = await getPublisherById(getDatabase(), Number(id));
+
+if (!publisher) {
+    return Astro.redirect('/404');
+}
+
+const games = await getGamesByPublisher(getDatabase(), Number(id));
+---
+
+<Layout title={`${publisher.name} - Tailspin Toys`}>
+  <div class="py-8">
+    <div class="mb-8">
+      <Button href="/" size="sm">
+        <ArrowLeft class="h-5 w-5 mr-2" aria-hidden="true" />
+        Back to all games
+      </Button>
+    </div>
+
+    <Card class="overflow-hidden mb-8" data-testid="publisher-details">
+      <div class="p-8">
+        <h1 class="text-4xl font-bold text-slate-100 mb-4" data-testid="publisher-name">{publisher.name}</h1>
+        
+        {publisher.description && (
+          <div class="space-y-4">
+            <p class="text-slate-300 text-lg" data-testid="publisher-description">
+              {publisher.description}
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+
+    <div>
+      <h2 class="text-2xl font-bold text-slate-100 mb-6" data-testid="games-heading">
+        Games by {publisher.name}
+      </h2>
+
+      {games.length > 0 ? (
+        <div 
+          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          data-testid="publisher-games-grid"
+        >
+          {games.map((game) => (
+            <GameCard game={game} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState data-testid="no-games-empty-state">
+          <p class="text-slate-300">No games found for {publisher.name}</p>
+        </EmptyState>
+      )}
+    </div>
+  </div>
+</Layout>

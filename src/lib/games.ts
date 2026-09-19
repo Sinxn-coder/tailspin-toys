@@ -12,6 +12,7 @@ const gameSelection = {
     categoryName: categories.name,
     publisherId: publishers.id,
     publisherName: publishers.name,
+    publisherDescription: publishers.description,
 };
 
 type GameSelectionRow = {
@@ -23,6 +24,7 @@ type GameSelectionRow = {
     categoryName: string | null;
     publisherId: number | null;
     publisherName: string | null;
+    publisherDescription: string | null;
 };
 
 function mapGame(row: GameSelectionRow): Game {
@@ -37,7 +39,7 @@ function mapGame(row: GameSelectionRow): Game {
                 : null,
         publisher:
             row.publisherId !== null && row.publisherName !== null
-                ? { id: row.publisherId, name: row.publisherName }
+                ? { id: row.publisherId, name: row.publisherName, description: row.publisherDescription }
                 : null,
     };
 }
@@ -66,4 +68,30 @@ export async function getAllGameIds(db: Database): Promise<number[]> {
 export async function getGameById(db: Database, id: number): Promise<Game | null> {
     const row = await baseGamesQuery(db).where(eq(games.id, id)).get();
     return row ? mapGame(row) : null;
+}
+
+/** All publisher ids ordered by name. */
+export async function getAllPublisherIds(db: Database): Promise<number[]> {
+    const rows = await db
+        .select({ id: publishers.id })
+        .from(publishers)
+        .orderBy(asc(publishers.name));
+    return rows.map((row) => row.id);
+}
+
+/** A single publisher by id with full details, or null when it does not exist. */
+export async function getPublisherById(
+    db: Database,
+    id: number
+): Promise<{ id: number; name: string; description: string | null } | null> {
+    const row = await db.select().from(publishers).where(eq(publishers.id, id)).get();
+    return row || null;
+}
+
+/** All games for a given publisher, ordered by title. */
+export async function getGamesByPublisher(db: Database, publisherId: number): Promise<Game[]> {
+    const rows = await baseGamesQuery(db)
+        .where(eq(games.publisherId, publisherId))
+        .orderBy(asc(games.title));
+    return rows.map(mapGame);
 }

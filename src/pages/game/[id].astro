@@ -42,9 +42,11 @@ if (!game) {
             </Tag>
           )}
           {game.publisher && (
-            <Tag color="purple" data-testid="game-details-publisher">
-              {game.publisher.name}
-            </Tag>
+            <a href={`/publisher/${game.publisher.id}`} data-testid="game-details-publisher-link">
+              <Tag color="purple" data-testid="game-details-publisher">
+                {game.publisher.name}
+              </Tag>
+            </a>
           )}
         </div>
 
