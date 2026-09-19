@@ -6,6 +6,9 @@ import {
     getAllGames,
     getAllGameIds,
     getGameById,
+    getAllPublisherIds,
+    getPublisherById,
+    getGamesByPublisher,
 } from './games';
 
 async function seedGames(db: Database, count: number): Promise<void> {
@@ -42,7 +45,7 @@ describe('games data-access helpers', () => {
         const all = await getAllGames(db);
         expect(all.map((g) => g.title)).toEqual(['Game 01', 'Game 02', 'Game 03']);
         expect(all[0].category).toEqual({ id: expect.any(Number), name: 'Strategy' });
-        expect(all[0].publisher).toEqual({ id: expect.any(Number), name: 'Pub One' });
+        expect(all[0].publisher).toEqual({ id: expect.any(Number), name: 'Pub One', description: 'pub' });
     });
 
     it('returns all game ids ordered by title', async () => {
@@ -62,5 +65,66 @@ describe('games data-access helpers', () => {
     it('returns null for a non-existent game', async () => {
         await seedGames(db, 2);
         expect(await getGameById(db, 99999)).toBeNull();
+    });
+
+    it('returns all publisher ids ordered by name', async () => {
+        await db.insert(publishers).values([
+            { name: 'Zebra Games', description: 'First publisher' },
+            { name: 'Apple Studios', description: 'Second publisher' },
+            { name: 'Middle Press', description: 'Third publisher' },
+        ]);
+        const ids = await getAllPublisherIds(db);
+        expect(ids.length).toBe(3);
+        // Verify ordering by fetching publishers
+        const publisherList = await Promise.all(ids.map((id) => getPublisherById(db, id)));
+        expect(publisherList.map((p) => p?.name)).toEqual([
+            'Apple Studios',
+            'Middle Press',
+            'Zebra Games',
+        ]);
+    });
+
+    it('fetches a single publisher by id', async () => {
+        await seedGames(db, 1);
+        const ids = await getAllPublisherIds(db);
+        const publisher = await getPublisherById(db, ids[0]);
+        expect(publisher?.name).toBe('Pub One');
+        expect(publisher?.description).toBe('pub');
+    });
+
+    it('returns null for a non-existent publisher', async () => {
+        await seedGames(db, 1);
+        expect(await getPublisherById(db, 99999)).toBeNull();
+    });
+
+    it('returns all games for a publisher ordered by title', async () => {
+        await seedGames(db, 5);
+        const [publisher] = await db.insert(publishers).values({ name: 'Pub Two', description: 'pub2' }).returning({ id: publishers.id });
+        const [category] = await db.select().from(categories).limit(1);
+        // Insert games for the second publisher in reverse order
+        for (let i = 3; i >= 1; i--) {
+            await db.insert(games).values({
+                title: `Pub Two Game ${i}`,
+                description: `Description ${i}`,
+                starRating: 3.5,
+                categoryId: category.id,
+                publisherId: publisher.id,
+            });
+        }
+        const publisherGames = await getGamesByPublisher(db, publisher.id);
+        expect(publisherGames.length).toBe(3);
+        expect(publisherGames.map((g) => g.title)).toEqual([
+            'Pub Two Game 1',
+            'Pub Two Game 2',
+            'Pub Two Game 3',
+        ]);
+        expect(publisherGames[0].publisher?.id).toBe(publisher.id);
+        expect(publisherGames[0].publisher?.name).toBe('Pub Two');
+    });
+
+    it('returns empty array for publisher with no games', async () => {
+        const [publisher] = await db.insert(publishers).values({ name: 'Empty Publisher' }).returning({ id: publishers.id });
+        const publisherGames = await getGamesByPublisher(db, publisher.id);
+        expect(publisherGames).toEqual([]);
     });
 });
